@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ICloudDriveSync/ICloudDriveSync.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ICloudDriveSync.Tests/ICloudDriveSync.Tests.csproj" />
+  </Folder>
+</Solution>
