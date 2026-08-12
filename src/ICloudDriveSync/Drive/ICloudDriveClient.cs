@@ -1,16 +1,30 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using ICloudDriveSync.Auth;
 
 namespace ICloudDriveSync.Drive;
 
 /// <summary>Cliente do protocolo CloudDocs (DriveWS/docws) do iCloud Drive.</summary>
-public sealed class ICloudDriveClient(HttpClient http, ICloudDriveSync.Auth.WebServices services, string? clientId = null)
+public sealed class ICloudDriveClient
 {
-    private readonly string _clientId = clientId ?? "icloud-drive-sync";
+    private readonly HttpClient _http;
+    private readonly WebServices _services;
+    private readonly string _clientId;
+
+    public ICloudDriveClient(HttpClient http, WebServices services, string? clientId = null)
+    {
+        _http = http;
+        _services = services;
+        _clientId = clientId ?? "icloud-drive-sync";
+
+        // O gateway responde 421 ("Invalid or missing Origin header") sem estes headers.
+        http.DefaultRequestHeaders.TryAddWithoutValidation("Origin", "https://www.icloud.com");
+        http.DefaultRequestHeaders.TryAddWithoutValidation("Referer", "https://www.icloud.com/");
+    }
 
     public async Task<IReadOnlyList<DriveNode>> GetChildrenAsync(string folderDriveWsId, CancellationToken ct = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"{services.DriveWsUrl}/retrieveItemDetailsInFolders")
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{_services.DriveWsUrl}/retrieveItemDetailsInFolders")
         {
             Content = JsonContent.Create(new object[]
             {
@@ -18,7 +32,7 @@ public sealed class ICloudDriveClient(HttpClient http, ICloudDriveSync.Auth.WebS
             }),
         };
 
-        using var response = await http.SendAsync(request, ct);
+        using var response = await _http.SendAsync(request, ct);
         response.EnsureSuccessStatusCode();
 
         // O iCloud responde com um array; o [0] é o próprio nó pedido, com os filhos em "items".
@@ -41,7 +55,7 @@ public sealed class ICloudDriveClient(HttpClient http, ICloudDriveSync.Auth.WebS
     /// <summary>fileCount do nó pedido (sanity check rápido — espelha o refresh do icloudds).</summary>
     public async Task<long?> GetFileCountAsync(string driveWsId, CancellationToken ct = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"{services.DriveWsUrl}/retrieveItemDetailsInFolders")
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{_services.DriveWsUrl}/retrieveItemDetailsInFolders")
         {
             Content = JsonContent.Create(new object[]
             {
@@ -49,7 +63,7 @@ public sealed class ICloudDriveClient(HttpClient http, ICloudDriveSync.Auth.WebS
             }),
         };
 
-        using var response = await http.SendAsync(request, ct);
+        using var response = await _http.SendAsync(request, ct);
         response.EnsureSuccessStatusCode();
 
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
@@ -73,8 +87,8 @@ public sealed class ICloudDriveClient(HttpClient http, ICloudDriveSync.Auth.WebS
         }
 
         var tokenRequest = new HttpRequestMessage(HttpMethod.Get,
-            $"{services.DocWsUrl}/ws/com.apple.CloudDocs/download/by_id?document_id={Uri.EscapeDataString(node.DocWsId)}&clientId={_clientId}");
-        using var tokenResponse = await http.SendAsync(tokenRequest, ct);
+            $"{_services.DocWsUrl}/ws/com.apple.CloudDocs/download/by_id?document_id={Uri.EscapeDataString(node.DocWsId)}&clientId={_clientId}");
+        using var tokenResponse = await _http.SendAsync(tokenRequest, ct);
         tokenResponse.EnsureSuccessStatusCode();
 
         using var doc = JsonDocument.Parse(await tokenResponse.Content.ReadAsStringAsync(ct));
@@ -95,7 +109,7 @@ public sealed class ICloudDriveClient(HttpClient http, ICloudDriveSync.Auth.WebS
         }
 
         var contentRequest = new HttpRequestMessage(HttpMethod.Get, url);
-        var contentResponse = await http.SendAsync(contentRequest, HttpCompletionOption.ResponseHeadersRead, ct);
+        var contentResponse = await _http.SendAsync(contentRequest, HttpCompletionOption.ResponseHeadersRead, ct);
         contentResponse.EnsureSuccessStatusCode();
         return await contentResponse.Content.ReadAsStreamAsync(ct);
     }
@@ -115,7 +129,7 @@ public sealed class ICloudDriveClient(HttpClient http, ICloudDriveSync.Auth.WebS
         var tokenQuery = string.IsNullOrEmpty(webauthToken) ? "" : $"&token={Uri.EscapeDataString(webauthToken)}";
 
         // 1. Solicita a URL de conteúdo.
-        var uploadWebUrl = $"{services.DocWsUrl}/ws/com.apple.CloudDocs/upload/web?clientId={_clientId}{tokenQuery}";
+        var uploadWebUrl = $"{_services.DocWsUrl}/ws/com.apple.CloudDocs/upload/web?clientId={_clientId}{tokenQuery}";
         using (var uploadWebReq = new HttpRequestMessage(HttpMethod.Post, uploadWebUrl)
                {
                    Content = JsonContent.Create(new
@@ -127,7 +141,7 @@ public sealed class ICloudDriveClient(HttpClient http, ICloudDriveSync.Auth.WebS
                    }),
                })
         {
-            using var uploadWebResp = await http.SendAsync(uploadWebReq, ct);
+            using var uploadWebResp = await _http.SendAsync(uploadWebReq, ct);
             uploadWebResp.EnsureSuccessStatusCode();
 
             using var uploadWebDoc = JsonDocument.Parse(await uploadWebResp.Content.ReadAsStringAsync(ct));
@@ -138,7 +152,7 @@ public sealed class ICloudDriveClient(HttpClient http, ICloudDriveSync.Auth.WebS
             // 2. Envia o binário (multipart) para a content_url.
             using var form = new MultipartFormDataContent();
             form.Add(new StreamContent(content), fileName, fileName);
-            using var contentResp = await http.PostAsync(contentUrl, form, ct);
+            using var contentResp = await _http.PostAsync(contentUrl, form, ct);
             contentResp.EnsureSuccessStatusCode();
 
             using var sfDoc = JsonDocument.Parse(await contentResp.Content.ReadAsStringAsync(ct));
@@ -170,11 +184,11 @@ public sealed class ICloudDriveClient(HttpClient http, ICloudDriveSync.Auth.WebS
             };
 
             using var updateReq = new HttpRequestMessage(HttpMethod.Post,
-                $"{services.DocWsUrl}/ws/com.apple.CloudDocs/update/documents?clientId={_clientId}")
+                $"{_services.DocWsUrl}/ws/com.apple.CloudDocs/update/documents?clientId={_clientId}")
             {
                 Content = new StringContent(JsonSerializer.Serialize(data), System.Text.Encoding.UTF8, "text/plain"),
             };
-            using var updateResp = await http.SendAsync(updateReq, ct);
+            using var updateResp = await _http.SendAsync(updateReq, ct);
             updateResp.EnsureSuccessStatusCode();
         }
     }
@@ -182,7 +196,7 @@ public sealed class ICloudDriveClient(HttpClient http, ICloudDriveSync.Auth.WebS
     /// <summary>Cria uma pasta no iCloud Drive.</summary>
     public async Task CreateFolderAsync(string destinationDriveWsId, string name, CancellationToken ct = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"{services.DriveWsUrl}/createFolders")
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{_services.DriveWsUrl}/createFolders")
         {
             Content = JsonContent.Create(new
             {
@@ -192,7 +206,7 @@ public sealed class ICloudDriveClient(HttpClient http, ICloudDriveSync.Auth.WebS
                 },
             }),
         };
-        using var response = await http.SendAsync(request, ct);
+        using var response = await _http.SendAsync(request, ct);
         response.EnsureSuccessStatusCode();
     }
 

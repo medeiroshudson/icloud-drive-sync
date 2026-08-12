@@ -10,6 +10,22 @@ public class ICloudDriveClientTests
     private const string DriveWsUrl = "https://drivews.icloud.com";
     private static readonly WebServices Services = new(DriveWsUrl, "https://docws.icloud.com/drive/ws");
 
+    [Fact]
+    public async Task SendsOriginAndRefererHeaders_GatewayExige_421SemOrigin()
+    {
+        var handler = new FakeHttpMessageHandler(_ => JsonResponse(FolderItemsResponse));
+        using var http = new HttpClient(handler);
+        _ = new ICloudDriveClient(http, Services);
+
+        _ = await new ICloudDriveClient(http, Services).GetFileCountAsync("FOLDER::com.apple.CloudDocs::root");
+
+        var req = handler.Requests[0];
+        Assert.Equal("https://www.icloud.com",
+            req.Headers.TryGetValues("Origin", out var origin) ? origin.First() : null);
+        Assert.Equal("https://www.icloud.com/",
+            req.Headers.TryGetValues("Referer", out var referer) ? referer.First() : null);
+    }
+
     private static ICloudDriveClient CreateClient(FakeHttpMessageHandler handler) =>
         new(new HttpClient(handler), Services);
 
