@@ -113,7 +113,7 @@ public static class Program
             return null;
         }
 
-        var sessionFile = Path.Combine(options.CookieDirectory, $"{options.Account.Replace("@", "")}.session");
+        var sessionFile = Path.Combine(options.CookieDirectory, $"{CliOptions.SessionBaseName(options.Account!)}.session");
         if (!File.Exists(sessionFile))
         {
             Console.Error.WriteLine($"Erro: arquivo de sessão não encontrado: {sessionFile}");
@@ -136,7 +136,7 @@ public static class Program
         var handler = new HttpClientHandler();
         if (options.CookieDirectory is not null && options.Account is not null)
         {
-            var cookieJar = Path.Combine(options.CookieDirectory, $"{options.Account.Replace("@", "")}.cookiejar");
+            var cookieJar = Path.Combine(options.CookieDirectory, $"{CliOptions.SessionBaseName(options.Account!)}.cookiejar");
             if (File.Exists(cookieJar))
             {
                 try
@@ -163,7 +163,7 @@ public static class Program
             return null;
         }
 
-        var cookieJar = Path.Combine(options.CookieDirectory, $"{options.Account.Replace("@", "")}.cookiejar");
+        var cookieJar = Path.Combine(options.CookieDirectory, $"{CliOptions.SessionBaseName(options.Account!)}.cookiejar");
         if (!File.Exists(cookieJar))
         {
             return null;

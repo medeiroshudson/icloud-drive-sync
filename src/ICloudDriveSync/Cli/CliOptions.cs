@@ -10,6 +10,14 @@ public sealed record CliOptions(
     IReadOnlyList<string> IgnoreRegexes,
     bool DryRun)
 {
+    /// <summary>
+    /// Nome base dos arquivos de sessão/cookies — espelha o pyicloud:
+    /// <c>"".join(c for c in accountName if re.match(r"\w", c))</c>
+    /// (remove @, . e qualquer não-alfanumérico).
+    /// </summary>
+    public static string SessionBaseName(string account) =>
+        new([.. account.Where(c => char.IsLetterOrDigit(c) || c == '_')]);
+
     public static CliOptions Parse(string[] args)
     {
         string? directory = null;

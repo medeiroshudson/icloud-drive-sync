@@ -5,6 +5,18 @@ namespace ICloudDriveSync.Tests.Cli;
 public class CliOptionsTests
 {
     [Fact]
+    public void SessionFileNameMatchesPyicloudWordCharFiltering()
+    {
+        // pyicloud: "".join(c for c in accountName if re.match(r"\w", c))
+        // → medeiroshudson@outlook.com vira medeiroshudsonoutlookcom (sem @ e sem .)
+        const string account = "medeiroshudson@outlook.com";
+
+        var name = CliOptions.SessionBaseName(account);
+
+        Assert.Equal("medeiroshudsonoutlookcom", name);
+    }
+
+    [Fact]
     public void ParsesFullArgumentSet()
     {
         var options = CliOptions.Parse([
