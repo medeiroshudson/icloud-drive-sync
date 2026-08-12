@@ -1,4 +1,4 @@
-using System.Text;
+using System.Net;
 using ICloudDriveSync.Auth;
 using ICloudDriveSync.Tests.TestInfra;
 
@@ -13,7 +13,7 @@ public class ICloudAuthClientTests
         AccountCountry: "BR",
         ClientId: "auth-1");
 
-    private const string AccountLoginResponse = """
+    private const string ValidateResponse = """
     {
       "dsInfo": { "accountCountry": "BR" },
       "webservices": {
@@ -26,16 +26,15 @@ public class ICloudAuthClientTests
     """;
 
     [Fact]
-    public async Task AuthenticatePostsAccountLoginWithDsWebAuthToken()
+    public async Task AuthenticateValidatesExistingSessionViaValidateEndpoint()
     {
         using var http = FakeHttpMessageHandler.CreateClient(req =>
         {
             Assert.Equal(HttpMethod.Post, req.Method);
-            Assert.EndsWith("/setup/ws/1/accountLogin", req.RequestUri!.AbsolutePath);
+            Assert.EndsWith("/setup/ws/1/validate", req.RequestUri!.AbsolutePath);
             var body = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
-            Assert.Contains("\"dsWebAuthToken\":\"AQA-session-token\"", body);
-            Assert.Contains("\"trustToken\":\"trust-1\"", body);
-            return JsonResponse(AccountLoginResponse);
+            Assert.Equal("null", body);
+            return JsonResponse(ValidateResponse);
         });
         var client = new ICloudAuthClient(http);
 
@@ -47,25 +46,22 @@ public class ICloudAuthClientTests
     }
 
     [Fact]
-    public async Task AuthenticateSendsAppleSessionHeadersFromCookies()
+    public async Task AuthenticateDoesNotPostAccountLoginForExistingSession()
     {
-        using var http = FakeHttpMessageHandler.CreateClient(req =>
-        {
-            Assert.Contains("AQA-session-token", req.Headers.GetValues("X-Apple-Session-Token"));
-            Assert.Equal("sid-1", req.Headers.GetValues("X-Apple-ID-Session-Id").Single());
-            Assert.Equal("trust-1", req.Headers.GetValues("X-Apple-TwoSV-Trust-Token").Single());
-            return JsonResponse(AccountLoginResponse);
-        });
+        var handler = new FakeHttpMessageHandler(_ => JsonResponse(ValidateResponse));
+        using var http = new HttpClient(handler);
         var client = new ICloudAuthClient(http);
 
         await client.AuthenticateAsync(Session);
+
+        Assert.DoesNotContain(handler.Requests, r => r.RequestUri!.AbsolutePath.Contains("accountLogin"));
     }
 
     [Fact]
     public async Task AuthenticateReturnsAuthRequiredOnExpiredSession()
     {
         var handler = new FakeHttpMessageHandler(req =>
-            new HttpResponseMessage(System.Net.HttpStatusCode.Unauthorized)
+            new HttpResponseMessage(HttpStatusCode.Unauthorized)
             {
                 Content = new StringContent("""{"error":"invalid token"}""", System.Text.Encoding.UTF8, "application/json"),
             });
@@ -94,7 +90,7 @@ public class ICloudAuthClientTests
 
     private static HttpResponseMessage JsonResponse(string json) => new()
     {
-        StatusCode = System.Net.HttpStatusCode.OK,
+        StatusCode = HttpStatusCode.OK,
         Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json"),
     };
 }

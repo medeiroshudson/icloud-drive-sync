@@ -1,46 +1,27 @@
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 
 namespace ICloudDriveSync.Auth;
 
 /// <summary>
-/// Autentica no iCloud usando apenas a sessão injetada (session_token + cookies).
+/// Autentica no iCloud usando apenas a sessão injetada (cookies + session_token).
 /// Nunca autentica com senha/SRP — isso causa lockout na conta.
+///
+/// Fluxo (espelha o pyicloud com sessão salva):
+/// POST /setup/ws/1/validate com body "null" — valida o token existente via cookies
+/// e devolve os webservices (drivews/docws). accountLogin só é usado após um signin
+/// novo, que nunca fazemos.
 /// </summary>
 public sealed class ICloudAuthClient(HttpClient http, string setupEndpoint = "https://setup.icloud.com/setup/ws/1")
 {
-    private const string WidgetKey = "d39ba9916b7251055b22c7f910e2ea796ee65e98b2ddecea8f5dde8d9d1a815d";
-
     public async Task<AuthResult> AuthenticateAsync(ICloudSession session, CancellationToken ct = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"{setupEndpoint}/accountLogin");
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{setupEndpoint}/validate");
 
         request.Headers.TryAddWithoutValidation("Origin", "https://www.icloud.com");
         request.Headers.TryAddWithoutValidation("Referer", "https://www.icloud.com/");
         request.Headers.TryAddWithoutValidation("Accept", "application/json");
-        request.Headers.TryAddWithoutValidation("X-Apple-Widget-Key", WidgetKey);
-        request.Headers.TryAddWithoutValidation("X-Apple-OAuth-Client-Id", WidgetKey);
-        request.Headers.TryAddWithoutValidation("X-Apple-OAuth-Redirect-uri", "https://www.icloud.com");
-        request.Headers.TryAddWithoutValidation("X-Apple-OAuth-Client-Type", "firstPartyAuth");
-        request.Headers.TryAddWithoutValidation("X-Apple-OAuth-Response-Mode", "web_message");
-        request.Headers.TryAddWithoutValidation("X-Apple-OAuth-Response-Type", "code");
-        request.Headers.TryAddWithoutValidation("X-Apple-OAuth-State", session.ClientId ?? "auth");
-        if (!string.IsNullOrEmpty(session.SessionToken))
-            request.Headers.TryAddWithoutValidation("X-Apple-Session-Token", session.SessionToken);
-        if (!string.IsNullOrEmpty(session.SessionId))
-            request.Headers.TryAddWithoutValidation("X-Apple-ID-Session-Id", session.SessionId);
-        if (!string.IsNullOrEmpty(session.TrustToken))
-            request.Headers.TryAddWithoutValidation("X-Apple-TwoSV-Trust-Token", session.TrustToken);
-
-        var body = new Dictionary<string, object?>
-        {
-            ["dsWebAuthToken"] = session.SessionToken,
-            ["accountCountryCode"] = session.AccountCountry,
-            ["extended_login"] = true,
-            ["trustToken"] = session.TrustToken,
-        };
-        request.Content = JsonContent.Create(body);
+        request.Content = new StringContent("null", System.Text.Encoding.UTF8, "application/json");
 
         using var response = await http.SendAsync(request, ct);
 
