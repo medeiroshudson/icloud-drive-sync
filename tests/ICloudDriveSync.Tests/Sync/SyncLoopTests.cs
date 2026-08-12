@@ -70,8 +70,58 @@ public class SyncLoopTests : IDisposable
 
         await loop.RunOnceAsync(RootId);
 
-        // 2º RunOnce: apenas o sanity check de fileCount (1 request), sem scan completo.
-        Assert.Equal(requestsAfterFirst + 1, handler.SentRequests.Count);
+        // 2º RunOnce: sanity check de fileCount (1) + varredura da lixeira (1),
+        // sem scan completo do root.
+        Assert.Equal(requestsAfterFirst + 2, handler.SentRequests.Count);
+    }
+
+    [Fact]
+    public async Task RefreshesWhenTrashChanges()
+    {
+        var trashPaths = new List<string>();
+        var handler = new FakeHttpMessageHandler(req =>
+        {
+            var body = req.Content is null ? "" : req.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            if (body.Contains("TRASH_ROOT"))
+            {
+                var items = trashPaths.Count == 0
+                    ? ""
+                    : string.Join(",", trashPaths.Select(p => $$"""
+                        {"drivewsid":"FILE::com.apple.CloudDocs::t1","docwsid":"t1",
+                         "parentDrivewsid":"TRASH_ROOT","etag":"e","name":"velho.txt","type":"FILE","size":1,
+                         "restorePath":{{System.Text.Json.JsonSerializer.Serialize(p)}},
+                         "dateModified":"2026-08-10T11:00:00Z"}
+                        """));
+                return FakeHttpMessageHandler.JsonResponse($$"""
+                    [{"drivewsid":"FOLDER::com.apple.CloudDocs::TRASH_ROOT","type":"FOLDER",
+                      "fileCount":{{trashPaths.Count}},"items":[{{items}}]}]
+                    """);
+            }
+            if (req.RequestUri!.AbsolutePath.EndsWith("/download/by_id"))
+            {
+                return FakeHttpMessageHandler.JsonResponse("""{"data_token":{"url":"https://cdn.example.com/f"}}""");
+            }
+            if (req.RequestUri.AbsoluteUri == "https://cdn.example.com/f")
+            {
+                return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent("baixado"u8.ToArray()),
+                };
+            }
+            return FakeHttpMessageHandler.JsonResponse(FolderWithFile("doc1", "remoto.txt", 7, 1));
+        });
+        var drive = new ICloudDriveClient(new HttpClient(handler), new WebServices(DriveWsUrl, DocWsUrl));
+        var loop = CreateLoop(drive);
+
+        await loop.RunOnceAsync(RootId);
+        trashPaths.Add("velho.txt");
+        var requestsBeforeTrashChange = handler.SentRequests.Count;
+
+        await loop.RunOnceAsync(RootId);
+
+        Assert.True(
+            handler.SentRequests.Count > requestsBeforeTrashChange + 2,
+            "mudança na lixeira deve disparar refresh completo (fileCount + trash + scan)");
     }
 
     [Fact]

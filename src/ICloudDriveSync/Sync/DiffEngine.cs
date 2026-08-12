@@ -12,14 +12,16 @@ public sealed class DiffEngine
         IReadOnlyDictionary<string, LocalEntry> local,
         IReadOnlyDictionary<string, RemoteEntry> remote,
         IReadOnlySet<string>? pathsInTrash = null,
-        IReadOnlyList<string>? ignoreRegexes = null)
+        IReadOnlyList<string>? ignoreRegexes = null,
+        IgnoreRules? ignoreRules = null)
     {
         var actions = new List<SyncAction>();
         var ignores = ignoreRegexes is { Count: > 0 }
             ? ignoreRegexes.Select(p => new Regex(p, RegexOptions.Compiled)).ToArray()
             : [];
+        var rules = ignoreRules ?? IgnoreRules.Defaults;
 
-        bool IsIgnored(string path) => PathRules.ShouldIgnore(path) || ignores.Any(r => r.IsMatch(path));
+        bool IsIgnored(string path) => rules.IsIgnored(path) || ignores.Any(r => r.IsMatch(path));
 
         // Só no local → sobe (arquivo) ou cria pasta no iCloud.
         // Exceto itens na trash do iCloud: não ressuscita o que foi deliberadamente deletado.

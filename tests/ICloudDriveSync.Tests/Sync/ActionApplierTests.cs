@@ -115,6 +115,20 @@ public class ActionApplierTests : IDisposable
     }
 
     [Fact]
+    public async Task DeleteLocalTrashItemRemovesFolderRecursively()
+    {
+        var victim = Path.Combine(_localRoot, "pasta-lixo");
+        Directory.CreateDirectory(Path.Combine(victim, "sub"));
+        File.WriteAllText(Path.Combine(victim, "a.txt"), "x");
+        File.WriteAllText(Path.Combine(victim, "sub", "b.txt"), "y");
+        var applier = new ActionApplier(new ICloudDriveClient(new HttpClient(new FakeHttpMessageHandler(_ => throw new InvalidOperationException())), new WebServices("x", "y")), _localRoot);
+
+        await applier.ApplyAsync([new DeleteLocalAction("pasta-lixo")], new Dictionary<string, RemoteEntry>(), RootId);
+
+        Assert.False(Directory.Exists(victim));
+    }
+
+    [Fact]
     public async Task DeleteLocalTrashItemRemovesFile()
     {
         var victim = Path.Combine(_localRoot, "velho.txt");

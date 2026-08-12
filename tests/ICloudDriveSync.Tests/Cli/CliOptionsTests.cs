@@ -45,6 +45,8 @@ public class CliOptionsTests
         Assert.Equal(600, options.RefreshPeriodSeconds);
         Assert.Equal(60, options.CheckPeriodSeconds);
         Assert.Empty(options.IgnoreRegexes);
+        Assert.Equal("/drive/.icloud-ignore", options.IgnoreFile);
+        Assert.False(options.IncludeAppLibrary);
     }
 
     [Fact]
@@ -65,5 +67,21 @@ public class CliOptionsTests
     {
         var options = CliOptions.Parse(["--directory", "/x", "--dry-run"]);
         Assert.Equal("/x", options.Directory);
+    }
+
+    [Fact]
+    public void ParsesIgnoreFileFlag()
+    {
+        var options = CliOptions.Parse(["-d", "/drive", "--ignore-file", "/config/meu-ignore"]);
+
+        Assert.Equal("/config/meu-ignore", options.IgnoreFile);
+    }
+
+    [Fact]
+    public void ParsesIncludeAppLibraryFlag()
+    {
+        var options = CliOptions.Parse(["-d", "/drive", "--include-app-library"]);
+
+        Assert.True(options.IncludeAppLibrary);
     }
 }

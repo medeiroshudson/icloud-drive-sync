@@ -8,6 +8,8 @@ public sealed record CliOptions(
     int RefreshPeriodSeconds,
     int CheckPeriodSeconds,
     IReadOnlyList<string> IgnoreRegexes,
+    string IgnoreFile,
+    bool IncludeAppLibrary,
     bool DryRun)
 {
     /// <summary>
@@ -26,6 +28,8 @@ public sealed record CliOptions(
         var refreshPeriod = 600;
         var checkPeriod = 60;
         var ignoreRegexes = new List<string>();
+        string? ignoreFile = null;
+        var includeAppLibrary = false;
         var dryRun = false;
 
         for (var i = 0; i < args.Length; i++)
@@ -53,6 +57,12 @@ public sealed record CliOptions(
                         .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                         .ToList();
                     break;
+                case "--ignore-file":
+                    ignoreFile = RequireValue(args, ref i, args[i]);
+                    break;
+                case "--include-app-library":
+                    includeAppLibrary = true;
+                    break;
                 case "--dry-run":
                     dryRun = true;
                     break;
@@ -66,7 +76,10 @@ public sealed record CliOptions(
             throw new ArgumentException("O diretório a sincronizar é obrigatório (-d/--directory).");
         }
 
-        return new CliOptions(directory, cookieDirectory, account, refreshPeriod, checkPeriod, ignoreRegexes, dryRun);
+        // Arquivo de ignore estilo .gitignore: default na raiz do diretório sincronizado.
+        ignoreFile ??= Path.Combine(directory, ".icloud-ignore");
+
+        return new CliOptions(directory, cookieDirectory, account, refreshPeriod, checkPeriod, ignoreRegexes, ignoreFile, includeAppLibrary, dryRun);
     }
 
     private static string RequireValue(string[] args, ref int i, string flag)

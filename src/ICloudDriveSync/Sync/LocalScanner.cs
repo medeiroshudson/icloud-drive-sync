@@ -1,8 +1,10 @@
 namespace ICloudDriveSync.Sync;
 
 /// <summary>Varre o diretório local e produz a árvore com paths normalizados ("/").</summary>
-public sealed class LocalScanner(string rootPath)
+public sealed class LocalScanner(string rootPath, IgnoreRules? ignoreRules = null)
 {
+    private readonly IgnoreRules _rules = ignoreRules ?? IgnoreRules.Defaults;
+
     public Dictionary<string, LocalEntry> Scan()
     {
         var result = new Dictionary<string, LocalEntry>();
@@ -22,7 +24,7 @@ public sealed class LocalScanner(string rootPath)
         {
             var name = Path.GetFileName(entry);
             var rel = relative.Length == 0 ? name : $"{relative}/{name}";
-            if (PathRules.ShouldIgnore(rel))
+            if (_rules.IsIgnored(rel))
             {
                 continue;
             }

@@ -44,6 +44,21 @@ public class LocalScannerTests : IDisposable
     }
 
     [Fact]
+    public void ScanIgnoresDotfilePaths()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, ".git"));
+        File.WriteAllText(Path.Combine(_root, ".git", "config"), "x");
+        File.WriteAllText(Path.Combine(_root, ".env"), "x");
+        File.WriteAllText(Path.Combine(_root, "notas.md"), "x");
+
+        var tree = new LocalScanner(_root).Scan();
+
+        Assert.DoesNotContain(tree.Keys, k => k.Contains(".git"));
+        Assert.DoesNotContain(".env", tree.Keys);
+        Assert.True(tree.ContainsKey("notas.md"));
+    }
+
+    [Fact]
     public void ScanRoundsTimestampsToSeconds()
     {
         var path = Path.Combine(_root, "a.txt");

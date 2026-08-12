@@ -22,7 +22,8 @@ public static class Program
             Console.Error.WriteLine($"Erro: {ex.Message}");
             Console.Error.WriteLine(
                 "Uso: icloud-drive-sync -d <diretório> [--cookie-directory <dir>] [--account <email>] " +
-                "[--icloud-refresh-period 600] [--icloud-check-period 60] [--ignore-regexes 'a|b'] [--dry-run]");
+                "[--icloud-refresh-period 600] [--icloud-check-period 60] [--ignore-regexes 'a|b'] " +
+                "[--ignore-file <path>] [--include-app-library] [--dry-run]");
             return 1;
         }
 
@@ -53,6 +54,7 @@ public static class Program
 
         var drive = new ICloudDriveClient(http, success.Services, session.ClientId);
         var coalescer = new LocalChangeCoalescer();
+        var rules = IgnoreRules.Load(options.IgnoreFile);
         var applier = new ActionApplier(
             drive,
             options.Directory,
@@ -60,10 +62,11 @@ public static class Program
             webauthToken: ExtractWebauthToken(options),
             dryRun: options.DryRun);
         var loop = new SyncLoop(
-            new CloudScanner(drive),
-            new LocalScanner(options.Directory),
+            new CloudScanner(drive, includeAppLibrary: options.IncludeAppLibrary, ignoreRules: rules),
+            new LocalScanner(options.Directory, rules),
             applier,
-            TimeSpan.FromSeconds(options.RefreshPeriodSeconds));
+            TimeSpan.FromSeconds(options.RefreshPeriodSeconds),
+            ignoreRules: rules);
 
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) =>

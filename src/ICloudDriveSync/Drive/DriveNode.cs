@@ -14,7 +14,17 @@ public sealed record DriveNode(
     [property: JsonPropertyName("size")] long Size,
     [property: JsonPropertyName("dateChanged")] DateTimeOffset? DateChanged,
     [property: JsonPropertyName("dateModified")] DateTimeOffset? DateModified,
-    [property: JsonPropertyName("fileCount")] long? FileCount)
+    [property: JsonPropertyName("fileCount")] long? FileCount,
+    [property: JsonPropertyName("restorePath")] string? RestorePath = null)
 {
     public bool IsFolder => Type == "FOLDER";
+
+    /// <summary>
+    /// Nome efetivo no disco/árvore: espelha o DriveNode do pyicloud
+    /// (name + extension, sem duplicar quando o name já embute a extensão).
+    /// </summary>
+    public string EffectiveName =>
+        !string.IsNullOrEmpty(Extension) && !Name.EndsWith("." + Extension, StringComparison.Ordinal)
+            ? $"{Name}.{Extension}"
+            : Name;
 }

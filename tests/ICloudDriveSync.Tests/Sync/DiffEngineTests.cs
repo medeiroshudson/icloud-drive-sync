@@ -162,6 +162,28 @@ public class DiffEngineTests
     }
 
     [Fact]
+    public void AppliesIgnoreRulesFromFile()
+    {
+        var local = new Dictionary<string, LocalEntry>
+        {
+            ["backup.bak"] = Local("backup.bak", Base),
+            ["nota.txt"] = Local("nota.txt", Base),
+        };
+        var remote = new Dictionary<string, RemoteEntry>
+        {
+            ["relatorio.bak"] = Remote("relatorio.bak", Base),
+            ["relatorio.pdf"] = Remote("relatorio.pdf", Base),
+        };
+
+        var actions = _engine.Diff(local, remote, ignoreRules: IgnoreRules.FromLines(["*.bak"]));
+
+        Assert.DoesNotContain(actions, a => a is UploadAction u && u.Path.EndsWith(".bak"));
+        Assert.DoesNotContain(actions, a => a is DownloadAction d && d.Path.EndsWith(".bak"));
+        Assert.Contains(actions, a => a is UploadAction u && u.Path == "nota.txt");
+        Assert.Contains(actions, a => a is DownloadAction d && d.Path == "relatorio.pdf");
+    }
+
+    [Fact]
     public void AppliesIgnoreRegexesToNewAndExistingPaths()
     {
         var local = new Dictionary<string, LocalEntry>

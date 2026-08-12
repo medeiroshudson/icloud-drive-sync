@@ -71,8 +71,21 @@ public sealed class ActionApplier(
                 break;
 
             case DeleteLocalAction delete:
-                File.Delete(FullPath(delete.Path));
+                DeleteLocal(FullPath(delete.Path));
                 break;
+        }
+    }
+
+    /// <summary>Remove arquivo OU pasta recursivamente (itens da lixeira podem ser pastas inteiras).</summary>
+    private static void DeleteLocal(string fullPath)
+    {
+        if (Directory.Exists(fullPath))
+        {
+            Directory.Delete(fullPath, recursive: true);
+        }
+        else if (File.Exists(fullPath))
+        {
+            File.Delete(fullPath);
         }
     }
 
