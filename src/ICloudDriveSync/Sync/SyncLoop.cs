@@ -41,7 +41,10 @@ public sealed class SyncLoop(
 
         var remote = await cloud.ScanRootAsync(rootFolderDriveWsId, ct);
         var tree = local.Scan();
+        Console.WriteLine(
+            $"[{currentNow:HH:mm:ss}] ciclo: remoto={remote.Count} itens, local={tree.Count}, trash={trash.Count} — diff em andamento");
         var actions = new DiffEngine().Diff(tree, remote, pathsInTrash: trash, ignoreRules: ignoreRules);
+        Console.WriteLine($"[{currentNow:HH:mm:ss}] plano: {actions.Count} ações");
         await applier.ApplyAsync(actions, remote, rootFolderDriveWsId, ct);
 
         _lastRefreshAt = currentNow;

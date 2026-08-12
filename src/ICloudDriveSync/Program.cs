@@ -91,7 +91,7 @@ public static class Program
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"[{DateTimeOffset.Now:HH:mm:ss}] Erro no ciclo: {ex.Message}");
+                Console.Error.WriteLine($"[{DateTimeOffset.Now:HH:mm:ss}] Erro no ciclo: {ex}");
             }
 
             try
